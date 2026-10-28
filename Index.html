@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>News Desk Monitor</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1b1b1b;--mute:#6b6b6b;--line:#e2e0da;--accent:#0b5fa5;--new:#c2410c}
+@media (prefers-color-scheme:dark){:root{--bg:#131416;--card:#1b1d20;--ink:#ececec;--mute:#9a9a9a;--line:#2c2f33;--accent:#6cb4f0;--new:#fb923c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Noto Sans Bengali",Segoe UI,sans-serif}
+header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px;z-index:5}
+h1{font-size:1.1rem;margin:0 0 8px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input{flex:1;min-width:180px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0 0}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:4px 11px;font:inherit;font-size:.85rem;white-space:nowrap;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+main{max-width:760px;margin:0 auto;padding:8px 16px 40px}
+.meta{color:var(--mute);font-size:.82rem;padding:8px 0}
+a.item{display:block;padding:12px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
+a.item:hover .t{color:var(--accent)}
+.t{font-weight:600}
+.s{color:var(--mute);font-size:.82rem;margin-top:3px}
+.new{color:var(--new);font-weight:700}
+.empty{padding:30px 0;color:var(--mute)}
+</style>
+</head>
+<body>
+<header>
+  <h1>News Desk Monitor</h1>
+  <div class="row"><input id="q" type="search" placeholder="Filter by keyword, e.g. BNP, Natore, arrest"></div>
+  <div class="chips" id="chips"></div>
+</header>
+<main>
+  <div class="meta" id="meta">Loading…</div>
+  <div id="list"></div>
+</main>
+<script>
+let items=[],source="All",updated="";
+const $=id=>document.getElementById(id);
+function ago(t){const m=Math.max(0,Math.round((Date.now()-new Date(t))/60000));
+  if(m<1)return"just now";if(m<60)return m+" min ago";const h=Math.round(m/60);
+  return h<24?h+" h ago":Math.round(h/24)+" d ago"}
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function chips(){
+  const names=["All",...new Set(items.map(i=>i.source))];
+  $("chips").innerHTML=names.map(n=>`<button class="chip" aria-pressed="${n===source}" data-n="${esc(n)}">${esc(n)}</button>`).join("");
+  document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{source=b.dataset.n;chips();render()});
+}
+function render(){
+  const q=$("q").value.trim().toLowerCase();
+  const rows=items.filter(i=>(source==="All"||i.source===source)&&(!q||i.title.toLowerCase().includes(q)));
+  $("meta").textContent=`${rows.length} stories`+(updated?` · feed checked ${ago(updated)}`:"");
+  $("list").innerHTML=rows.length?rows.map(i=>{
+    const fresh=Date.now()-new Date(i.time)<3600000;
+    return `<a class="item" href="${esc(i.link)}" target="_blank" rel="noopener"><div class="t">${esc(i.title)}</div><div class="s">${fresh?'<span class="new">New</span> · ':""}${esc(i.source)} · ${ago(i.time)}</div></a>`}).join(""):
+    `<div class="empty">No stories match. Clear the keyword or pick another outlet.</div>`;
+}
+async function load(){
+  try{
+    const r=await fetch("news.json?t="+Date.now());const d=await r.json();
+    items=d.items;updated=d.updated;chips();render();
+  }catch(e){$("meta").textContent="Could not load news.json. Run the update workflow once."}
+}
+$("q").oninput=render;
+load();setInterval(load,120000);
+</script>
+</body>
+</html>
